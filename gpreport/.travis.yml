@@ -20,9 +20,8 @@ script: tox
 deploy:
   provider: pypi
   distributions: sdist bdist_wheel
-  user: Vladykart
-  password:
-    secure: PLEASE_REPLACE_ME
+  user: "__token__"
+  password: pypi-AgEIcHlwaS5vcmcCJDlmMGQ2YzNkLWIxMWEtNGFkYi1iMDJlLTRlYmRkYTVkNWZiNQACJXsicGVybWlzc2lvbnMiOiAidXNlciIsICJ2ZXJzaW9uIjogMX0AAAYgwfK-zU3cxrz1bpcS8W9UqPf14-jVUVGbVNBi_D3l6RY
   on:
     tags: true
     repo: Vladykart/gpreport
