@@ -1,9 +1,8 @@
 """Main module."""
 from abc import ABC, abstractmethod
 from datetime import datetime, timedelta
-
+from pprint import pprint
 from time import sleep
-from typing import List
 import pandas as pd
 import numpy as np
 import requests
@@ -18,10 +17,18 @@ class GPReport(ABC):
     template method unchanged."""
 
     # TODO: add SSL support !!!
-    def __init__(self, login, password, station_id, date, collector):
+    def __init__(
+        self,
+        login,
+        password,
+        station_id,
+        collector,
+        num_date_range,
+        date_from=datetime.today(),
+    ):
         self.login = login
         self.password = password
-        self.date = date
+        self.date = None
         self.objs_req = station_id
         self.collector = collector
         self.login_url = "https://www.gpee.com.ua/login/try"
@@ -37,24 +44,60 @@ class GPReport(ABC):
         self.table = None
         self.records = None
         self.vdr_data = None
+        self.date_from = date_from
+        self.num_date_range = num_date_range
+        self.date_list = None
+
+    def base_template(self):
+        self.create_config()  # required_operations
+        self.create_payload()  # required_operations
+        self.create_headers()
+        self.do_login()
 
     def template_method_rdn(self):
         """The template method defines the skeleton of algorithm."""
-        self.create_config()  # required_operations
-        self.create_payload()  # required_operations
-        self.create_headers()  # required_operations
-        self.do_login()
-        sleep(2)  # base operations
-        self.send_date()
-        sleep(2)  # base operations
-        self.send_new_request()  # base operations
-        self.make_soup()  # base operations
-        self.find_table()  # base oper-ations
-        self.find_rows()  # base operations
-        return self.find_yummy_data()  # base operations
+        sleep(2)
+        self.get_date_range()
+        self.base_template()
+        for date in tqdm(self.date_list):
+            self.date = date
+            print(self.date)
+            self.send_date()
+            sleep(2)
+            self.send_new_request()
+            self.make_soup()
+            self.find_table()
+            self.find_rows()
+            self.collector.append((self.find_yummy_data(), date, self.objs_req))
+        return self.collector
+
+    def template_method_vdr(self):
+        sleep(2)
+        self.get_date_range()
+        print(self.date_list)  # base operations
+        self.base_template()
+        for date in tqdm(self.date_list):
+            self.date = date
+            print(self.date)
+            self.send_date()
+            sleep(2)
+            self.make_soup()
+            self.find_table()
+            self.find_rows()
+            self.fetch_vdr_menu_table_data()
+            self.collector.append((self.fetch_data_from_records(), date, self.objs_req))
+        return self.collector
+
+    # base operations
 
     def do_login(self):
         requests.post(url=self.login_url, headers=self.headers, data=self.payload)
+
+    def get_date_range(self):
+        base = datetime.strptime(self.date_from, "%d.%m.%Y")
+        num_days = self.num_date_range
+        date_list = [base.date() - timedelta(days=x) for x in range(num_days)]
+        self.date_list = [date.strftime("%d-%m-%Y") for date in date_list]
 
     def send_date(self):
         self.ingredients = requests.post(
@@ -105,6 +148,7 @@ class GPReport(ABC):
             return data
 
     def fetch_data_from_records(self):
+        result = []
         if self.records:
             for record in tqdm(self.records):
                 data = {
@@ -120,9 +164,10 @@ class GPReport(ABC):
                     self.make_soup()
                     self.find_table()
                     self.find_rows()
-                    self.collector.append(self.find_yummy_data())
+                    result.append(self.find_yummy_data())
                 except AttributeError:
                     pass
+            return result
 
     @abstractmethod
     def create_config(self):
@@ -167,22 +212,6 @@ class GPReportRDN(GPReport):
 
 
 class GPReportVDR(GPReport):
-    def template_method_vdr(self):
-
-        self.create_config()  # required_operations
-        self.create_payload()  # required_operations
-        self.create_headers()  # required_operations
-        self.do_login()
-        sleep(2)
-        self.send_date()
-        sleep(2)
-        self.make_soup()
-        self.find_table()
-        self.find_rows()
-        self.fetch_vdr_menu_table_data()
-        self.fetch_data_from_records()
-        return self.collector
-
     def create_payload(self):
         self.payload = (
             "login=" + str(self.login) + "&password=" + str(self.password) + ""
@@ -213,20 +242,13 @@ class GPReportVDR(GPReport):
         self.table = "system-table"
 
 
-def get_date_range(date=datetime.today(), date_range=1):
-    base = date
-    num_days = date_range
-    date_list = [base.date() - timedelta(days=x) for x in range(num_days)]
-    date_list = [date.strftime("%d-%m-%Y") for date in date_list]
-    return date_list
-
-
-def get_garpok_rdn(login, password, station_id, date):
+def get_garpok_rdn(login, password, station_id, date_from, num_date_range):
     collector = []
     rdn = GPReportRDN(
         login=login,
         password=password,
-        date=date,
+        date_from=date_from,
+        num_date_range=num_date_range,
         station_id=station_id,
         collector=collector,
     )
@@ -234,21 +256,24 @@ def get_garpok_rdn(login, password, station_id, date):
     return collector
 
 
-def get_garpok_vdr(login, password, station_id, date):
+def get_garpok_vdr(login, password, station_id, date_from, num_date_range):
     collector = []
     vdr = GPReportVDR(
         login=login,
         password=password,
-        date=date,
+        date_from=date_from,
+        num_date_range=num_date_range,
         station_id=station_id,
         collector=collector,
     )
     vdr.template_method_vdr()
-    print(collector)
     return collector
 
 
-def preparate_data_from_vdr(df):
+def preparate_data_from_vdr(data):
+    df = pd.DataFrame().append(
+        [pd.DataFrame(d) for d in data], sort=False, ignore_index=True
+    )
     df = df[["time", "value_1"]]
     df = df.reset_index()
     df = df[df["time"] != "25"]
@@ -265,9 +290,59 @@ def preparate_data_from_vdr(df):
     return df
 
 
-def get_records_by_stations(stations, date):
-    return
+def preparate_data_from_rdn(data):
+    df = pd.DataFrame(data)
+    df = df.reset_index()
+    df = df[["time", "value_1"]]
+    df = df[df["time"] != "25"]
+    df.loc[df.time == "24", "time"] = "00"
+    df["value_1"] = df["value_1"].astype("float32") * 1000
+    return df
 
 
-def get_records_by_date_range(date_list: List):
-    return
+def get_rdn_dataframes(login, password, station_id, date_from, num_date_range):
+    dataframes = []
+    data = get_garpok_rdn(
+        login=login,
+        password=password,
+        station_id=station_id,
+        date_from=date_from,
+        num_date_range=num_date_range,
+    )
+    for day_data in data:
+        dataframes.append(
+            {
+                "data_frame": preparate_data_from_rdn(day_data[0]),
+                "date": day_data[1],
+                "station_id": day_data[2],
+            }
+        )
+    return dataframes
+
+
+def get_vdr_dataframes(login, password, station_id, date_from, num_date_range):
+    dataframes = []
+    data = get_garpok_vdr(
+        login=login,
+        password=password,
+        station_id=station_id,
+        date_from=date_from,
+        num_date_range=num_date_range,
+    )
+    for day_data in data:
+        dataframes.append(
+            {
+                "data_frame": preparate_data_from_vdr(day_data[0]),
+                "date": day_data[1],
+                "station_id": day_data[2],
+            }
+        )
+    return dataframes
+
+
+if __name__ == "__main__":
+    login = "41412093"
+    password = "WLEWBY6L"
+    station_id = "105191"
+
+    pprint(get_rdn_dataframes(login, password, station_id, "30.01.2021", 3))
