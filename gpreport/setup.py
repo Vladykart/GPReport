@@ -12,7 +12,7 @@ with open('HISTORY.rst') as history_file:
 
 requirements = ['requirements.txt']
 
-setup_requirements = [ ]
+setup_requirements = ['requirements.txt']
 
 test_requirements = [ ]
 
