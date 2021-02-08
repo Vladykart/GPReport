@@ -1,7 +1,6 @@
 """Main module."""
 from abc import ABC, abstractmethod
 from datetime import datetime, timedelta
-from pprint import pprint
 from time import sleep
 import pandas as pd
 import numpy as np
@@ -338,11 +337,3 @@ def get_vdr_dataframes(login, password, station_id, date_from, num_date_range):
             }
         )
     return dataframes
-
-
-if __name__ == "__main__":
-    login = "41412093"
-    password = "WLEWBY6L"
-    station_id = "105191"
-
-    pprint(get_rdn_dataframes(login, password, station_id, "30.01.2021", 3))
