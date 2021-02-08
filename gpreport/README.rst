@@ -71,14 +71,33 @@ Once you have a copy of the source, you can install it with:
 .. _Github repo: https://github.com/Vladykart/gpreport
 .. _tarball: https://github.com/Vladykart/gpreport/tarball/master
 
-=====
-Usage
-=====
-
 To use GPReport in a project::
 
-    import gpreport
+    import gpreport as gp
 
+    # To get rdn datasets:
+    rdn = get_rdn_dataframes(
+                login = 'LOGIN',
+                password = 'PASSWORD',
+                station_id = ''STATION_ID,
+                date_from = 'dd.mm.yyyy',
+                num_days = int
+                )
+
+    # To get vdr datasets:
+    vdr = get_vdr_dataframes(
+                login = 'LOGIN',
+                password = 'PASSWORD',
+                station_id = ''STATION_ID,
+                date_from = 'dd.mm.yyyy',
+                num_days = int
+                )
+
+This methods returns a list of dictionary::
+
+    [{'dataframe': pandas.DataFrame,
+      'date': str,
+      'station_id': str}]
 
 
 Credits
