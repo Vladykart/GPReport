@@ -4,10 +4,10 @@ Usage
 
 To use GPReport in a project::
 
-    import gpreport as gp
+    from gpreport import gpreport as gp
 
     # To get rdn datasets:
-    rdn = get_rdn_dataframes(
+    rdn = gp.get_rdn_dataframes(
                 login = 'LOGIN',
                 password = 'PASSWORD',
                 station_id = ''STATION_ID,
@@ -16,7 +16,7 @@ To use GPReport in a project::
                 )
 
     # To get vdr datasets:
-    vdr = get_vdr_dataframes(
+    vdr = gp.get_vdr_dataframes(
                 login = 'LOGIN',
                 password = 'PASSWORD',
                 station_id = ''STATION_ID,
