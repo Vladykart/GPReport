@@ -2,11 +2,32 @@
 from abc import ABC, abstractmethod
 from datetime import datetime, timedelta
 from time import sleep
-import pandas as pd
+
 import numpy as np
+import pandas as pd
 import requests
 from bs4 import BeautifulSoup
 from tqdm import tqdm
+
+
+class GPLogin(ABC):
+    # todo
+
+    login_url = "https://www.gpee.com.ua/login/try"
+
+    def __init__(self, login, password, station_id):
+        self.login = login
+        self.password = password
+        self.objs_req = station_id
+        self.headers = None
+        self.payload = None
+
+    def base_template(self):
+        # todo
+        pass
+
+    def do_login(self):
+        requests.post(url=self.login_url, headers=self.headers, data=self.payload)
 
 
 class GPReport(ABC):
@@ -22,8 +43,9 @@ class GPReport(ABC):
         password,
         station_id,
         collector,
-        num_date_range,
-        date_from=datetime.today(),
+        date_list,
+        num_date_range=None,
+        date_from=None,
     ):
         self.login = login
         self.password = password
@@ -45,7 +67,7 @@ class GPReport(ABC):
         self.vdr_data = None
         self.date_from = date_from
         self.num_date_range = num_date_range
-        self.date_list = None
+        self.date_list = date_list
 
     def base_template(self):
         self.create_config()  # required_operations
@@ -55,14 +77,15 @@ class GPReport(ABC):
 
     def template_method_rdn(self):
         """The template method defines the skeleton of algorithm."""
-        sleep(2)
-        self.get_date_range()
+        sleep(1)
+        if self.date_list is None:
+            self.get_date_range()
         self.base_template()
         for date in tqdm(self.date_list):
             self.date = date
             print(self.date)
             self.send_date()
-            sleep(2)
+            sleep(1)
             self.send_new_request()
             self.make_soup()
             self.find_table()
@@ -71,15 +94,16 @@ class GPReport(ABC):
         return self.collector
 
     def template_method_vdr(self):
-        sleep(2)
-        self.get_date_range()
+        sleep(1)
+        if self.date_list is None:
+            self.get_date_range()
         print(self.date_list)  # base operations
         self.base_template()
         for date in tqdm(self.date_list):
             self.date = date
             print(self.date)
             self.send_date()
-            sleep(2)
+            sleep(1)
             self.make_soup()
             self.find_table()
             self.find_rows()
@@ -158,7 +182,7 @@ class GPReport(ABC):
                 self.ingredients = requests.post(
                     url=self.new_request_url, headers=self.headers, data=data
                 )
-                sleep(1)
+                sleep(0.5)
                 try:
                     self.make_soup()
                     self.find_table()
@@ -205,7 +229,8 @@ class GPReportRDN(GPReport):
             "Sec-Fetch-User": "?1",
             "Sec-Fetch-Dest": "document",
             "Accept-Language": "ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.`7  7,uk;q=0.6",
-            "Cookie": "PHPSESSID=tml5c76k5vesvt3s5j5duldpb1",
+            "Cookie": "ga=GA1.3.957199123.1611834501; PHPSESSID=c03c795rfu37md53bn2hhsc6v6; "
+            "_gid=GA1.3.1506715412.1613136891",
             "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
         }
 
@@ -229,7 +254,8 @@ class GPReportVDR(GPReport):
             "Sec-Fetch-User": "?1",
             "Sec-Fetch-Dest": "document",
             "Accept-Language": "ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.`7  7,uk;q=0.6",
-            "Cookie": "PHPSESSID=tml5c76k5vesvt3s5j5duldpb1",
+            "Cookie": "ga=GA1.3.957199123.1611834501; PHPSESSID=c03c795rfu37md53bn2hhsc6v6; "
+            "_gid=GA1.3.1506715412.1613136891",
             "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
         }
 
@@ -241,72 +267,87 @@ class GPReportVDR(GPReport):
         self.table = "system-table"
 
 
-def get_garpok_rdn(login, password, station_id, date_from, num_date_range):
+def get_garpok_rdn(login, password, date_list, station_id):
     collector = []
     rdn = GPReportRDN(
         login=login,
         password=password,
-        date_from=date_from,
-        num_date_range=num_date_range,
+        date_list=date_list,
         station_id=station_id,
         collector=collector,
     )
-    rdn.template_method_rdn()
-    return collector
+    try:
+        rdn.template_method_rdn()
+        return collector
+    except AttributeError:
+        pass
 
 
-def get_garpok_vdr(login, password, station_id, date_from, num_date_range):
+def get_garpok_vdr(login, password, station_id, date_list):
     collector = []
     vdr = GPReportVDR(
         login=login,
         password=password,
-        date_from=date_from,
-        num_date_range=num_date_range,
+        date_list=date_list,
         station_id=station_id,
         collector=collector,
     )
-    vdr.template_method_vdr()
-    return collector
+    try:
+        vdr.template_method_vdr()
+        return collector
+    except AttributeError:
+        pass
 
 
 def preparate_data_from_vdr(data):
-    df = pd.DataFrame().append(
-        [pd.DataFrame(d) for d in data], sort=False, ignore_index=True
-    )
-    df = df[["time", "value_1"]]
-    df = df.reset_index()
-    df = df[df["time"] != "25"]
-    df.loc[df.time == "24", "time"] = "00"
-    df = df.reindex(index=df.index[::-1])
-    df["time"] = pd.to_datetime(df["time"], format="%H", errors="coerce").dt.time
-    df["idx"] = df.groupby("time").cumcount()
-    df = df.pivot(index="time", columns="idx")[["value_1"]]
-    df = df.replace(r"^\s*$", np.nan, regex=True)
-    df["value_1"] = df["value_1"].astype("float32") * 1000
-    df["result"] = df.ffill(1).iloc[:, -1]
-    df = df.reset_index()
-    df = df.apply(lambda x: sorted(x, key=pd.notnull), 0)
-    return df
+    try:
+        df = pd.DataFrame().append(
+            [pd.DataFrame(d) for d in data], sort=False, ignore_index=True
+        )
+        df = df.reset_index()
+        df = df[["time", "value_1"]]
+        df = df[df["time"] != "25"]
+        df.loc[df.time == "24", "time"] = "00"
+        df = df.reindex(index=df.index[::-1])
+        df["time"] = pd.to_datetime(df["time"], format="%H", errors="coerce").dt.time
+        df["idx"] = df.groupby("time").cumcount()
+        df = df.pivot(index="time", columns="idx")[["value_1"]]
+        df = df.replace(r"^\s*$", np.nan, regex=True)
+        df["value_1"] = df["value_1"].astype("float32") * 1000
+        df["result"] = df.ffill(1).iloc[:, -1]
+        df = df.reset_index()
+        df = df.apply(lambda x: sorted(x, key=pd.notnull), 0)
+        result = df["result"].fillna(0).astype("int32").tolist()[:]
+        result.append(result.pop(0))
+        return result
+
+    except TypeError:
+        pass
 
 
 def preparate_data_from_rdn(data):
-    df = pd.DataFrame(data)
-    df = df.reset_index()
-    df = df[["time", "value_1"]]
-    df = df[df["time"] != "25"]
-    df.loc[df.time == "24", "time"] = "00"
-    df["value_1"] = df["value_1"].astype("float32") * 1000
-    return df
+
+    try:
+        df = pd.DataFrame(data)
+        df = df.reset_index()
+        df = df[["time", "value_1"]]
+        df = df[df["time"] != "25"]
+        df.loc[df.time == "24", "time"] = "00"
+        df["time"] = pd.to_datetime(df["time"], format="%H", errors="coerce").dt.time
+        df["value_1"] = df["value_1"].replace("", np.NaN)
+        df["value_1"] = df["value_1"].astype("float32") * 1000
+        return df["value_1"].astype("int32").tolist()
+    except TypeError:
+        pass
 
 
-def get_rdn_dataframes(login, password, station_id, date_from, num_date_range):
+def get_rdn_dataframes(login, password, station_id, date_list):
     dataframes = []
     data = get_garpok_rdn(
         login=login,
         password=password,
         station_id=station_id,
-        date_from=date_from,
-        num_date_range=num_date_range,
+        date_list=date_list,
     )
     for day_data in data:
         dataframes.append(
@@ -319,14 +360,13 @@ def get_rdn_dataframes(login, password, station_id, date_from, num_date_range):
     return dataframes
 
 
-def get_vdr_dataframes(login, password, station_id, date_from, num_date_range):
+def get_vdr_dataframes(login, password, station_id, date_list):
     dataframes = []
     data = get_garpok_vdr(
         login=login,
         password=password,
         station_id=station_id,
-        date_from=date_from,
-        num_date_range=num_date_range,
+        date_list=date_list,
     )
     for day_data in data:
         dataframes.append(

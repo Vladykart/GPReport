@@ -1,0 +1,1 @@
+1 * * * * root python3 /usr/src/app/garpok/main.py
